@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <signal.h>
 #include <errno.h>
+#include "net_utils.h"
 
 #define PORT 12345
 #define BUFFER_SIZE 1024
@@ -18,7 +19,7 @@ int server_fd;
 /* ==================== SIGNAL HANDLER ==================== */
 
 void handle_sigint(int sig) {
-    printf("\n[Server] Chiusura server...\n");
+    printf("\n[Server] Segnale SIGINT ricevuto. Avvio chiusura pulita...\n");
     if (server_fd > 0)
         close(server_fd);
     exit(0);
@@ -31,24 +32,26 @@ void *handle_client(void *arg) {
     free(arg);
 
     char buffer[BUFFER_SIZE];
+    printf("[Thread] Nuovo client connesso sul socket %d\n", client_socket);
 
-    send(client_socket, "Server pronto.\n", 15, 0);
+    char *welcome = "Server Pronto (Echo Mode con recv_line).\n";
+    send(client_socket, welcome, strlen(welcome), 0);
 
     while (1) {
         memset(buffer, 0, sizeof(buffer));
-        ssize_t n = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
-
-        if (n <= 0)
-            break;
-
-        if (strncmp(buffer, "QUIT", 4) == 0)
-            break;
-
-        send(client_socket, buffer, strlen(buffer), 0); // echo
+        ssize_t n = recv_line(client_socket, buffer, sizeof(buffer));
+        if (n <= 0) break; 
+        printf("[Thread %d] Ricevuto: %s\n", client_socket, buffer);
+        if (strncmp(buffer, "QUIT", 4) == 0) break;
+        
+        // Echo back (aggiungiamo newline perché recv_line lo ha tolto dal buffer stringa)
+        char output[BUFFER_SIZE];
+        snprintf(output, sizeof(output), "%s", buffer);
+        send(client_socket, output, strlen(output), 0);
     }
 
     close(client_socket);
-    printf("[Server] Client disconnesso.\n");
+    printf("[Thread] Client sul socket %d disconnesso.\n", client_socket);
     return NULL;
 }
 
