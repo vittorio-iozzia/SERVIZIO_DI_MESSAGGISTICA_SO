@@ -1,0 +1,55 @@
+#include "users.h"
+#include "server.h"
+
+#include <stdio.h>
+#include <string.h>
+
+int authenticate(const char *username, const char *password) {
+    pthread_mutex_lock(&file_mutex);
+    FILE *file = fopen(USER_FILE, "r");
+    if (!file) { pthread_mutex_unlock(&file_mutex); return 0; }
+    char line[100];
+    while (fgets(line, sizeof(line), file)) {
+        char stored_user[50], stored_pass[50];
+        if (sscanf(line, "%49[^:]:%49s", stored_user, stored_pass) == 2) {
+            if (strcmp(username, stored_user) == 0 && strcmp(password, stored_pass) == 0) {
+                fclose(file);
+                pthread_mutex_unlock(&file_mutex);
+                return 1;
+            }
+        }
+    }
+    fclose(file);
+    pthread_mutex_unlock(&file_mutex);
+    return 0;
+}
+
+int user_exists(const char *username) {
+    pthread_mutex_lock(&file_mutex);
+    FILE *file = fopen(USER_FILE, "r");
+    if (!file) { pthread_mutex_unlock(&file_mutex); return 0; }
+    char line[100], user[50];
+    while (fgets(line, sizeof(line), file)) {
+        if (sscanf(line, "%49[^:]", user) == 1) {
+            if (strcmp(user, username) == 0) {
+                fclose(file);
+                pthread_mutex_unlock(&file_mutex);
+                return 1;
+            }
+        }
+    }
+    fclose(file);
+    pthread_mutex_unlock(&file_mutex);
+    return 0;
+}
+
+int create_user(const char *username, const char *password) {
+    if (user_exists(username)) return 0;
+    pthread_mutex_lock(&file_mutex);
+    FILE *file = fopen(USER_FILE, "a");
+    if (!file) { pthread_mutex_unlock(&file_mutex); return 0; }
+    fprintf(file, "%s:%s\n", username, password);
+    fclose(file);
+    pthread_mutex_unlock(&file_mutex);
+    return 1;
+}
