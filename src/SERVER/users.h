@@ -5,4 +5,6 @@ int authenticate(const char *username, const char *password);
 int user_exists(const char *username);
 int create_user(const char *username, const char *password);
 
+unsigned long hash_password(const char *password);
+
 #endif
