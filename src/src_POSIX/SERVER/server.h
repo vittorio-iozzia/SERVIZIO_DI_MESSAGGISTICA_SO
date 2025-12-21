@@ -7,8 +7,8 @@
 #include "../COMMON/common.h"
 
 #define PORT 8080
-#define USER_FILE "../DATA/users.txt"
-#define MSG_FILE "../DATA/messages.txt"
+#define USER_FILE "DATA/users.txt"
+#define MSG_FILE "DATA/messages.txt"
 
 /* Strutture e variabili globali */
 typedef struct {
