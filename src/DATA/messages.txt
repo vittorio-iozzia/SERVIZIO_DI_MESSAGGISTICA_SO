@@ -1,3 +1,1 @@
-claudio|vittorio|CIAO|ciao come va?
-fabrizio|vittorio|COME VA|ottimo
-fabrizio|vittorio|ARRIVO|è arrivato
+
