@@ -7,6 +7,7 @@
 extern "C" {
 #endif
 
+/* Gestisce il menu interattivo del client */
 void client_menu_loop(socket_t sock);
 
 #ifdef __cplusplus

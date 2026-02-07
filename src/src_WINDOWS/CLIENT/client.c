@@ -13,9 +13,7 @@
 
 #include "common.h"
 
-
 #define PORT 8080
-
 
 /**
  * @brief Avvia il programma client.
@@ -30,14 +28,17 @@ void client_program(void) {
     socket_t sock;
     struct sockaddr_in server;
 
+    /* Inizializzazione struttura indirizzo server */
     memset(&server, 0, sizeof(server));
 
+    /* Inizializzazione libreria Winsock */
     WSADATA wsa;
     if (WSAStartup(MAKEWORD(2,2), &wsa) != 0) {
         fprintf(stderr, "WSAStartup fallita\n");
         exit(EXIT_FAILURE);
     }
 
+    /* Creazione socket TCP */
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == INVALID_SOCKET) {
         perror("socket");
@@ -45,10 +46,12 @@ void client_program(void) {
         exit(EXIT_FAILURE);
     }
 
+    /* Configurazione indirizzo del server */
     server.sin_family = AF_INET;
     server.sin_port   = htons(PORT);
     inet_pton(AF_INET, "127.0.0.1", &server.sin_addr);
 
+    /* Connessione al server */
     if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
         perror("connect");
         closesocket(sock);
@@ -58,14 +61,17 @@ void client_program(void) {
 
     printf("Connesso al server.\n");
 
+    /* Fase di autenticazione */
     if (client_authenticate(sock) != 0) {
         closesocket(sock);
         WSACleanup();
         return;
     }
 
+    /* Avvio menu interattivo del client */
     client_menu_loop(sock);
 
+    /* Chiusura connessione e cleanup Winsock */
     closesocket(sock);
     WSACleanup();
 }

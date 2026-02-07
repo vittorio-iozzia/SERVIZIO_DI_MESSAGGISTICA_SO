@@ -10,10 +10,19 @@
 
 #include "../COMMON/common.h"
 
+/*
+ * Gestisce il menu interattivo del client dopo l'autenticazione.
+ *
+ * La funzione invia i comandi al server secondo il protocollo testuale
+ * e gestisce le risposte ricevute.
+ */
 void client_menu_loop(int sock) {
+
     char buffer[MAX_MSG_LEN];
 
+    /* Loop principale del menu */
     while (1) {
+
         printf("\n=== MENU ===\n");
         printf("1. Invia messaggio\n");
         printf("2. Leggi messaggi\n");
@@ -26,7 +35,9 @@ void client_menu_loop(int sock) {
 
         int choice = atoi(choice_input);
 
+        /* ----- INVIO MESSAGGIO ----- */
         if (choice == 1) {
+
             char to[MAX_USERNAME_LEN];
             char subj[MAX_SUBJECT_LEN];
             char body[MAX_BODY_LEN];
@@ -43,6 +54,7 @@ void client_menu_loop(int sock) {
             fgets(body, sizeof(body), stdin);
             clean_input(body);
 
+            /* Costruzione e invio comando SEND */
             snprintf(buffer, sizeof(buffer),
                      "SEND|%s|%s|%s\n", to, subj, body);
 
@@ -50,10 +62,13 @@ void client_menu_loop(int sock) {
             recv_line(sock, buffer, sizeof(buffer));
             printf("Server: %s\n", buffer);
 
+        /* ----- LETTURA MESSAGGI ----- */
         } else if (choice == 2) {
+
             send(sock, "READ\n", 5, 0);
             printf("\n--- Posta in arrivo ---\n");
 
+            /* Ricezione messaggi fino al terminatore END_READ */
             while (1) {
                 recv_line(sock, buffer, sizeof(buffer));
                 if (strcmp(buffer, "END_READ") == 0)
@@ -61,14 +76,19 @@ void client_menu_loop(int sock) {
                 printf("%s\n", buffer);
             }
 
+        /* ----- CANCELLAZIONE MESSAGGI ----- */
         } else if (choice == 3) {
+
             send(sock, "DELETE\n", 7, 0);
             recv_line(sock, buffer, sizeof(buffer));
             printf("Server: %s\n", buffer);
 
+        /* ----- USCITA ----- */
         } else if (choice == 4) {
+
             send(sock, "QUIT\n", 5, 0);
             return;
+
         } else {
             printf("Scelta non valida.\n");
         }

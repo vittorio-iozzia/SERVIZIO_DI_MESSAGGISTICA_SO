@@ -9,7 +9,6 @@
 
 #include <winsock2.h>
 
-
 /**
  * @brief Gestisce il menu interattivo del client.
  *
@@ -23,6 +22,7 @@ void client_menu_loop(socket_t sock) {
 
     char buffer[MAX_MSG_LEN];
 
+    /* Loop principale del menu */
     while (1) {
 
         printf("\n=== MENU ===\n");
@@ -37,6 +37,7 @@ void client_menu_loop(socket_t sock) {
 
         int choice = atoi(choice_input);
 
+        /* ----- INVIO MESSAGGIO ----- */
         if (choice == 1) {
 
             char to[MAX_USERNAME_LEN];
@@ -58,6 +59,7 @@ void client_menu_loop(socket_t sock) {
                 continue;
             clean_input(body);
 
+            /* Costruzione e invio comando SEND */
             snprintf(buffer, sizeof(buffer),
                      "SEND|%s|%s|%s\n", to, subj, body);
 
@@ -66,11 +68,13 @@ void client_menu_loop(socket_t sock) {
             if (recv_line(sock, buffer, sizeof(buffer)) > 0)
                 printf("Server: %s\n", buffer);
 
+        /* ----- LETTURA MESSAGGI ----- */
         } else if (choice == 2) {
 
             send(sock, "READ\n", 5, 0);
             printf("\n--- Posta in arrivo ---\n");
 
+            /* Ricezione messaggi fino al terminatore END_READ */
             while (1) {
 
                 if (recv_line(sock, buffer, sizeof(buffer)) <= 0)
@@ -82,6 +86,7 @@ void client_menu_loop(socket_t sock) {
                 printf("%s\n", buffer);
             }
 
+        /* ----- CANCELLAZIONE MESSAGGI ----- */
         } else if (choice == 3) {
 
             send(sock, "DELETE\n", 7, 0);
@@ -89,6 +94,7 @@ void client_menu_loop(socket_t sock) {
             if (recv_line(sock, buffer, sizeof(buffer)) > 0)
                 printf("Server: %s\n", buffer);
 
+        /* ----- USCITA ----- */
         } else if (choice == 4) {
 
             send(sock, "QUIT\n", 5, 0);

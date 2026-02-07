@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+/* Avvia l'esecuzione del client */
 void client_program(void);
 
 #ifdef __cplusplus

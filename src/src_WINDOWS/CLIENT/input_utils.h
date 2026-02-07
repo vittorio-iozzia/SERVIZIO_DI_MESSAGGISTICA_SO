@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+/* Pulisce una stringa di input rimuovendo newline e caratteri non validi */
 void clean_input(char *str);
 
 #ifdef __cplusplus

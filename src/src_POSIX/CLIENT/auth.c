@@ -9,20 +9,36 @@
 
 #include "../COMMON/common.h"
 
+/*
+ * Gestisce la fase di autenticazione lato client.
+ * Permette all'utente di scegliere tra login e registrazione
+ * e dialoga con il server tramite protocollo testuale.
+ *
+ * Ritorna:
+ *  0  -> autenticazione riuscita
+ * -1  -> uscita volontaria o errore di comunicazione
+ */
 int client_authenticate(int sock) {
+
     char buffer[MAX_MSG_LEN];
     char user[MAX_USERNAME_LEN];
     char pass[MAX_PASSWORD_LEN];
 
+    /* Loop finché l'utente non si autentica o decide di uscire */
     while (1) {
+
         printf("\n1. Login\n2. Registrazione\n3. Esci\n> ");
         char choice[10];
+
+        /* Lettura scelta utente */
         if (!fgets(choice, sizeof(choice), stdin))
             return -1;
 
+        /* Uscita dal client */
         if (choice[0] == '3')
             return -1;
 
+        /* Inserimento credenziali */
         printf("Username: ");
         fgets(user, sizeof(user), stdin);
         clean_input(user);
@@ -31,6 +47,7 @@ int client_authenticate(int sock) {
         fgets(pass, sizeof(pass), stdin);
         clean_input(pass);
 
+        /* Costruzione del messaggio secondo il protocollo */
         if (choice[0] == '1')
             snprintf(buffer, sizeof(buffer), "LOGIN|%s|%s\n", user, pass);
         else if (choice[0] == '2')
@@ -38,16 +55,20 @@ int client_authenticate(int sock) {
         else
             continue;
 
+        /* Invio richiesta al server */
         send(sock, buffer, strlen(buffer), 0);
 
+        /* Attesa risposta dal server */
         if (recv_line(sock, buffer, sizeof(buffer)) <= 0)
             return -1;
 
+        /* Login riuscito */
         if (strcmp(buffer, "OK") == 0) {
             printf("Login effettuato con successo!\n");
             return 0;
         }
 
+        /* Qualsiasi altro messaggio è un errore o notifica */
         printf("Server: %s\n", buffer);
     }
 }
