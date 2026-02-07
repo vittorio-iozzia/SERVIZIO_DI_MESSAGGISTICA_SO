@@ -1,3 +1,4 @@
+
 ### *Vittorio Iozzia* ###
 
 # 🧠 **Multi-Client Messaging System in C (POSIX & Windows)**
@@ -150,7 +151,7 @@ make posix
 ```bash
 make windows
 ```
-### Run executables:
+### Run executables (POSIX/WINDOWS):
 
 ```bash
 ./server
@@ -161,7 +162,8 @@ make windows
 
 The Windows version is designed to be compiled using **MinGW (GCC for Windows)** inside a Unix-like environment such as **MSYS2**.
 
-**Native Visual Studio builds are not supported!**
+**⚠️ Native Visual Studio builds are not supported!**
+
 
 ---
 
@@ -335,12 +337,15 @@ make windows
 ./server
 ./client
 ```
+### Note sulla compilazione di Windows
+
+La versione Windows è progettata per essere compilata utilizzando **MinGW (GCC per Windows)** all’interno di un ambiente **Unix-like** come **MSYS2**.
+
+**⚠️ La compilazione nativa tramite Visual Studio non è supportata!**
+
 ---
 
 **License:** MIT  
 **Language:** C  
 **Architecture:** Client–Server  
 **Protocol:** TCP/IP  
-
-
-
