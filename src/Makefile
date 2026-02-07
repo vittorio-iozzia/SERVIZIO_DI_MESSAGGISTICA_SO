@@ -104,4 +104,4 @@ windows_client:
 # --------------------- CLEAN ---------------------
 
 clean:
-	rm -f server.exe client.exe
+	rm -f server client
