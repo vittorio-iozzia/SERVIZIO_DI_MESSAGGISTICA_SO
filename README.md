@@ -153,8 +153,8 @@ make windows
 ### Run executables:
 
 ```bash
-./server.exe
-./client.exe
+./server
+./client
 ```
 
 ### Windows Build Notes
@@ -332,8 +332,8 @@ make windows
 ### Lancio degli eseguibili:
 
 ```bash
-./server.exe
-./client.exe
+./server
+./client
 ```
 ---
 
