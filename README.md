@@ -169,6 +169,8 @@ The Windows version is designed to be compiled using **MinGW (GCC for Windows)**
 
 ## 🧑‍💻 **Authors & Acknowledgements**
 
+**Author**: *Vittorio Iozzia*
+
 Developed for the **Operating Systems course**, focusing on:
 
 - Concurrency
