@@ -80,12 +80,12 @@ posix: posix_server posix_client
 posix_server:
 	$(CC_POSIX) $(CFLAGS_POSIX) $(POSIX_SERVER_SRC) \
 	$(POSIX_INCLUDES) $(LDFLAGS_POSIX) \
-	-o server.exe
+	-o server
 
 posix_client:
 	$(CC_POSIX) $(CFLAGS_POSIX) $(POSIX_CLIENT_SRC) \
 	$(POSIX_INCLUDES) $(LDFLAGS_POSIX) \
-	-o client.exe
+	-o client
 
 # --------------------- WINDOWS ---------------------
 
@@ -94,12 +94,12 @@ windows: windows_server windows_client
 windows_server:
 	$(CC_WINDOWS) $(CFLAGS_WINDOWS) $(WINDOWS_SERVER_SRC) \
 	$(WINDOWS_INCLUDES) $(LDFLAGS_WINDOWS) \
-	-o server.exe
+	-o server
 
 windows_client:
 	$(CC_WINDOWS) $(CFLAGS_WINDOWS) $(WINDOWS_CLIENT_SRC) \
 	$(WINDOWS_INCLUDES) $(LDFLAGS_WINDOWS) \
-	-o client.exe
+	-o client
 
 # --------------------- CLEAN ---------------------
 

@@ -9,19 +9,26 @@
 #include <unistd.h>
 #include <sys/socket.h>
 
-/* Variabili globali */
+/* ----------------- VARIABILI GLOBALI ----------------- */
+
 pthread_mutex_t file_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t cache_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 MessageCache global_cache = {NULL, 0, 0};
+
 int server_fd = -1;
 volatile sig_atomic_t running = 1;
 
-/* Signal handler: solo operazioni async-signal-safe */
+/* ----------------- SIGNAL HANDLER ----------------- */
+
 void handle_sigint(int sig) {
     (void)sig;
     running = 0;
-    if (server_fd > 0) close(server_fd);
+    if (server_fd > 0)
+        close(server_fd);
 }
+
+/* ----------------- CLEANUP ----------------- */
 
 void server_shutdown_cleanup() {
     printf("[Cleanup] Salvataggio stato della cache su disco...\n");
@@ -38,14 +45,16 @@ void server_shutdown_cleanup() {
     printf("[Cleanup] Server terminato.\n");
 }
 
-/* Handler per ogni client */
+/* ----------------- CLIENT HANDLER ----------------- */
+
 void *handle_client(void *arg) {
     ClientHandler *client = (ClientHandler *)arg;
     int sock = client->socket;
     char buffer[MAX_MSG_LEN];
 
-    /* Autenticazione/registrazione */
-    while(1) {
+    /* -------- AUTENTICAZIONE / REGISTRAZIONE -------- */
+
+    while (1) {
         memset(buffer, 0, sizeof(buffer));
         ssize_t r = recv_line(sock, buffer, sizeof(buffer));
         if (r <= 0) {
@@ -54,7 +63,7 @@ void *handle_client(void *arg) {
             return NULL;
         }
 
-        char *cmd = strtok(buffer, "|");
+        char *cmd  = strtok(buffer, "|");
         char *user = strtok(NULL, "|");
         char *pass = strtok(NULL, "|");
 
@@ -64,63 +73,88 @@ void *handle_client(void *arg) {
         }
 
         if (strcmp(cmd, "LOGIN") == 0) {
+
             if (authenticate(user, pass)) {
-                strncpy(client->username, user, sizeof(client->username)-1);
-                client->username[sizeof(client->username)-1] = '\0';
+                strncpy(client->username, user, sizeof(client->username) - 1);
+                client->username[sizeof(client->username) - 1] = '\0';
                 send(sock, "OK\n", 3, 0);
                 break;
             } else {
                 send(sock, "FAIL\n", 5, 0);
-                continue;
             }
+
         } else if (strcmp(cmd, "REGISTER") == 0) {
+
             if (create_user(user, pass)) {
                 send(sock, "OK_REG\n", 7, 0);
             } else {
                 send(sock, "FAIL_EXISTS\n", 12, 0);
             }
-            continue;
+
         } else {
             send(sock, "ERR\n", 4, 0);
-            continue;
         }
     }
 
     printf("[Server] Utente '%s' connesso.\n", client->username);
 
-    /* Loop principale */
+    /* -------- LOOP PRINCIPALE -------- */
+
     while (1) {
         memset(buffer, 0, sizeof(buffer));
         ssize_t bytes = recv_line(sock, buffer, sizeof(buffer));
-        if (bytes <= 0) break;
+        if (bytes <= 0)
+            break;
 
         char *cmd = strtok(buffer, "|");
-        if (!cmd) continue;
+        if (!cmd)
+            continue;
 
+        /* ----- SEND ----- */
         if (strcmp(cmd, "SEND") == 0) {
-            char *to = strtok(NULL, "|");
+
+            char *to   = strtok(NULL, "|");
             char *subj = strtok(NULL, "|");
             char *body = strtok(NULL, "");
-            if (to && subj && body) {
-                save_message(client->username, to, subj, body);
-                send(sock, "OK\n", 3, 0);
-            } else {
+
+            if (!to || !subj || !body) {
                 send(sock, "ERR\n", 4, 0);
+                continue;
             }
+
+            /* CONTROLLO COERENZA: destinatario registrato */
+            if (!user_exists(to)) {
+                send(sock, "ERR_NO_USER\n", 12, 0);
+                continue;
+            }
+
+            save_message(client->username, to, subj, body);
+            send(sock, "OK\n", 3, 0);
+
+        /* ----- READ ----- */
         } else if (strcmp(cmd, "READ") == 0) {
+
             read_messages(client->username, sock);
+
+        /* ----- DELETE ----- */
         } else if (strcmp(cmd, "DELETE") == 0) {
+
             delete_messages(client->username);
             send(sock, "OK\n", 3, 0);
+
+        /* ----- QUIT ----- */
         } else if (strcmp(cmd, "QUIT") == 0) {
+
             send(sock, "BYE\n", 4, 0);
             break;
+
         } else {
             send(sock, "ERR\n", 4, 0);
         }
     }
 
     printf("[Server] Utente '%s' disconnesso.\n", client->username);
+
     close(sock);
     free(client);
     return NULL;

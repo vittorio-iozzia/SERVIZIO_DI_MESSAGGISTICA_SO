@@ -50,7 +50,6 @@ void handle_sigint(int sig) {
  *
  * Questa funzione non chiude Winsock e non distrugge le CriticalSection:
  * tali operazioni dipendono dalla strategia adottata nel main/relazione.
- * Se vuoi, possiamo centralizzare anche quelle qui.
  */
 void server_shutdown_cleanup(void) {
 
@@ -86,6 +85,8 @@ void *handle_client(void *arg) {
     ClientHandler *client = (ClientHandler *)arg;
     socket_t sock = client->socket;
     char buffer[MAX_MSG_LEN];
+
+    /* -------- AUTENTICAZIONE / REGISTRAZIONE -------- */
 
     while (running) {
 
@@ -133,6 +134,8 @@ void *handle_client(void *arg) {
 
     printf("[Server] Utente '%s' connesso.\n", client->username);
 
+    /* -------- LOOP PRINCIPALE -------- */
+
     while (running) {
 
         memset(buffer, 0, sizeof(buffer));
@@ -144,28 +147,39 @@ void *handle_client(void *arg) {
         char *cmd = strtok(buffer, "|");
         if (!cmd) continue;
 
+        /* ===== SEND ===== */
         if (strcmp(cmd, "SEND") == 0) {
 
             char *to   = strtok(NULL, "|");
             char *subj = strtok(NULL, "|");
             char *body = strtok(NULL, "");
 
-            if (to && subj && body) {
-                save_message(client->username, to, subj, body);
-                send(sock, "OK\n", 3, 0);
-            } else {
+            if (!to || !subj || !body) {
                 send(sock, "ERR\n", 4, 0);
+                continue;
             }
 
+            /* Controllo di coerenza: destinatario registrato */
+            if (!user_exists(to)) {
+                send(sock, "ERR_NO_USER\n", 12, 0);
+                continue;
+            }
+
+            save_message(client->username, to, subj, body);
+            send(sock, "OK\n", 3, 0);
+
+        /* ===== READ ===== */
         } else if (strcmp(cmd, "READ") == 0) {
 
             read_messages(client->username, sock);
 
+        /* ===== DELETE ===== */
         } else if (strcmp(cmd, "DELETE") == 0) {
 
             delete_messages(client->username);
             send(sock, "OK\n", 3, 0);
 
+        /* ===== QUIT ===== */
         } else if (strcmp(cmd, "QUIT") == 0) {
 
             send(sock, "BYE\n", 4, 0);
