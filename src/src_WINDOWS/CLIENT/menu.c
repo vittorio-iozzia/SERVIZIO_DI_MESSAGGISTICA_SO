@@ -19,17 +19,15 @@
  * @param sock Socket connesso al server.
  */
 void client_menu_loop(socket_t sock) {
-
     char buffer[MAX_MSG_LEN];
 
-    /* Loop principale del menu */
     while (1) {
-
         printf("\n=== MENU ===\n");
         printf("1. Invia messaggio\n");
         printf("2. Leggi messaggi\n");
-        printf("3. Cancella messaggi\n");
-        printf("4. Esci\n> ");
+        printf("3. Cancella tutti i messaggi\n");
+        printf("4. Cancella un messaggio specifico\n");
+        printf("5. Esci\n> ");
 
         char choice_input[10];
         if (!fgets(choice_input, sizeof(choice_input), stdin))
@@ -37,66 +35,63 @@ void client_menu_loop(socket_t sock) {
 
         int choice = atoi(choice_input);
 
-        /* ----- INVIO MESSAGGIO ----- */
-        if (choice == 1) {
-
+        if (choice == 1) {  /* Invia messaggio */
             char to[MAX_USERNAME_LEN];
             char subj[MAX_SUBJECT_LEN];
             char body[MAX_BODY_LEN];
 
             printf("A: ");
-            if (!fgets(to, sizeof(to), stdin))
-                continue;
+            if (!fgets(to, sizeof(to), stdin)) continue;
             clean_input(to);
 
             printf("Oggetto: ");
-            if (!fgets(subj, sizeof(subj), stdin))
-                continue;
+            if (!fgets(subj, sizeof(subj), stdin)) continue;
             clean_input(subj);
 
             printf("Testo: ");
-            if (!fgets(body, sizeof(body), stdin))
-                continue;
+            if (!fgets(body, sizeof(body), stdin)) continue;
             clean_input(body);
 
-            /* Costruzione e invio comando SEND */
             snprintf(buffer, sizeof(buffer),
                      "SEND|%s|%s|%s\n", to, subj, body);
-
             send(sock, buffer, (int)strlen(buffer), 0);
 
             if (recv_line(sock, buffer, sizeof(buffer)) > 0)
                 printf("Server: %s\n", buffer);
 
-        /* ----- LETTURA MESSAGGI ----- */
-        } else if (choice == 2) {
-
+        } else if (choice == 2) {  /* Leggi messaggi */
             send(sock, "READ\n", 5, 0);
             printf("\n--- Posta in arrivo ---\n");
 
-            /* Ricezione messaggi fino al terminatore END_READ */
             while (1) {
-
-                if (recv_line(sock, buffer, sizeof(buffer)) <= 0)
-                    return;
-
-                if (strcmp(buffer, "END_READ") == 0)
-                    break;
-
+                if (recv_line(sock, buffer, sizeof(buffer)) <= 0) return;
+                if (strcmp(buffer, "END_READ") == 0) break;
                 printf("%s\n", buffer);
             }
 
-        /* ----- CANCELLAZIONE MESSAGGI ----- */
-        } else if (choice == 3) {
-
+        } else if (choice == 3) {  /* Cancella tutti */
             send(sock, "DELETE\n", 7, 0);
+            if (recv_line(sock, buffer, sizeof(buffer)) > 0)
+                printf("Server: %s\n", buffer);
+
+        } else if (choice == 4) {  /* Cancella specifico */
+            int msg_id;
+            printf("Inserisci ID del messaggio da cancellare: ");
+            if (scanf("%d", &msg_id) != 1) {
+                while (getchar() != '\n'); /* pulisce buffer stdin */
+                printf("ID non valido.\n");
+                continue;
+            }
+            while (getchar() != '\n'); /* pulisce newline */
+
+            snprintf(buffer, sizeof(buffer),
+                     "DELETE_ONE|%d\n", msg_id);
+            send(sock, buffer, (int)strlen(buffer), 0);
 
             if (recv_line(sock, buffer, sizeof(buffer)) > 0)
                 printf("Server: %s\n", buffer);
 
-        /* ----- USCITA ----- */
-        } else if (choice == 4) {
-
+        } else if (choice == 5) {  /* Esci */
             send(sock, "QUIT\n", 5, 0);
             return;
 
@@ -105,3 +100,4 @@ void client_menu_loop(socket_t sock) {
         }
     }
 }
+

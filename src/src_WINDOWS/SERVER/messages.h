@@ -25,6 +25,9 @@ void read_messages(const char *user, socket_t client_socket);
 /* Cancella tutti i messaggi destinati all'utente */
 void delete_messages(const char *user);
 
+/* Cancella un messaggio specifico dato ID */
+int delete_specific_message(const char *user, int target_id);
+
 #ifdef __cplusplus
 }
 #endif

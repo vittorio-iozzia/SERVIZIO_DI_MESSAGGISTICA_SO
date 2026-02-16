@@ -10,14 +10,12 @@
 #include <winsock2.h>
 #include <windows.h>
 
-
 /* Variabili globali definite dall'interfaccia (server.h) */
 mutex_t file_mutex;
 mutex_t cache_mutex;
 MessageCache global_cache = { NULL, 0, 0 };
 socket_t server_fd = INVALID_SOCKET;
 atomic_int_t running = 1;
-
 
 /**
  * @brief Gestisce la richiesta di terminazione del server.
@@ -40,7 +38,6 @@ void handle_sigint(int sig) {
         server_fd = INVALID_SOCKET;
     }
 }
-
 
 /**
  * @brief Esegue le operazioni di cleanup alla terminazione del server.
@@ -70,12 +67,11 @@ void server_shutdown_cleanup(void) {
     printf("[Cleanup] Server terminato.\n");
 }
 
-
 /**
  * @brief Gestisce un singolo client connesso.
  *
  * Esegue autenticazione/registrazione tramite protocollo testuale
- * e poi gestisce i comandi principali (SEND/READ/DELETE/QUIT).
+ * e poi gestisce i comandi principali (SEND/READ/DELETE/QUIT/DEL_ID).
  *
  * @param arg Puntatore a ClientHandler allocato dinamicamente.
  * @return void* Sempre NULL (firma compatibile con codice preesistente).
@@ -147,7 +143,7 @@ void *handle_client(void *arg) {
         char *cmd = strtok(buffer, "|");
         if (!cmd) continue;
 
-        /* ===== SEND ===== */
+        /* ----- SEND ----- */
         if (strcmp(cmd, "SEND") == 0) {
 
             char *to   = strtok(NULL, "|");
@@ -159,7 +155,6 @@ void *handle_client(void *arg) {
                 continue;
             }
 
-            /* Controllo di coerenza: destinatario registrato */
             if (!user_exists(to)) {
                 send(sock, "ERR_NO_USER\n", 12, 0);
                 continue;
@@ -168,18 +163,40 @@ void *handle_client(void *arg) {
             save_message(client->username, to, subj, body);
             send(sock, "OK\n", 3, 0);
 
-        /* ===== READ ===== */
+        /* ----- READ ----- */
         } else if (strcmp(cmd, "READ") == 0) {
 
             read_messages(client->username, sock);
 
-        /* ===== DELETE ===== */
+        /* ----- DELETE ALL ----- */
         } else if (strcmp(cmd, "DELETE") == 0) {
 
             delete_messages(client->username);
             send(sock, "OK\n", 3, 0);
 
-        /* ===== QUIT ===== */
+        /* ----- DELETE SPECIFIC MESSAGE ----- */
+        } else if (strcmp(cmd, "DELETE_ONE") == 0) {
+
+            char *id_str = strtok(NULL, "|");
+            if (!id_str) {
+                send(sock, "ERR\n", 4, 0);
+                continue;
+            }
+
+            // Rimuove eventuali \r o \n
+            id_str[strcspn(id_str, "\r\n")] = '\0';
+
+            int msg_id = atoi(id_str);
+            int deleted = delete_specific_message(client->username, msg_id);
+
+            if (deleted) {
+                send(sock, "OK\n", 3, 0);
+            } else {
+                // Invia sempre terminazione corretta
+                send(sock, "ERR_NOT_FOUND\n", (int)strlen("ERR_NOT_FOUND\n"), 0);
+            }
+
+        /* ----- QUIT ----- */
         } else if (strcmp(cmd, "QUIT") == 0) {
 
             send(sock, "BYE\n", 4, 0);

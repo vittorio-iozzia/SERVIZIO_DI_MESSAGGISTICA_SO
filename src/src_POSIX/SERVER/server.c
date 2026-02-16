@@ -136,11 +136,30 @@ void *handle_client(void *arg) {
 
             read_messages(client->username, sock);
 
-        /* ----- DELETE ----- */
+        /* ----- DELETE ALL ----- */
         } else if (strcmp(cmd, "DELETE") == 0) {
 
             delete_messages(client->username);
             send(sock, "OK\n", 3, 0);
+        
+         /* ----- DELETE SPECIFIC ----- */
+        } else if (strcmp(cmd, "DELETE_ONE") == 0) {
+            char *id_str = strtok(NULL, "|");
+            if (!id_str) {
+                send(sock, "ERR\n", 4, 0);
+                continue;
+            }
+
+            // Rimuove eventuali \r o \n
+            id_str[strcspn(id_str, "\r\n")] = '\0';
+
+            int msg_id = atoi(id_str);
+
+            if (delete_specific_message(client->username, msg_id)) {
+                send(sock, "OK\n", 3, 0);
+            } else {
+                send(sock, "ERR_NOT_FOUND\n", (int)strlen("ERR_NOT_FOUND\n"), 0);
+            }
 
         /* ----- QUIT ----- */
         } else if (strcmp(cmd, "QUIT") == 0) {

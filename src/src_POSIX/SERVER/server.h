@@ -12,6 +12,7 @@
 
 /* Strutture e variabili globali */
 typedef struct {
+    int id;
     char recipient[50];
     char sender[50];
     char subject[100];
