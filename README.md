@@ -1,4 +1,3 @@
-
 ### *Vittorio Iozzia* ###
 
 # 🧠 **Multi-Client Messaging System in C (POSIX & Windows)**
@@ -34,14 +33,14 @@ Both versions share the **same application logic and protocol**, but differ in t
 │   ├── src_POSIX/
 │   │   ├── SERVER/
 │   │   ├── CLIENT/
-│   │   ├── COMMON/
-│   │   └── DATA/
+│   │   └── COMMON/
 │   │
-│   └── src_WINDOWS/
-│       ├── SERVER/
-│       ├── CLIENT/
-│       ├── COMMON/
-│       └── DATA/
+│   ├── src_WINDOWS/
+│   │   ├── SERVER/
+│   │   ├── CLIENT/
+│   │   └── COMMON/
+│   │
+│   └── DATA/
 │
 ├── Makefile
 ├── README.md
@@ -54,32 +53,34 @@ Both versions share the **same application logic and protocol**, but differ in t
 
 ### Memory & Persistence
 
-- Messages and user data are loaded into **memory (RAM)** at server startup.
-- Persistence is implemented using a **write-back strategy**.
-- All messages are written to disk **only during a graceful server shutdown**.
-- On restart, the server reloads data from disk.
-
-This design reduces disk I/O and simplifies synchronization, at the cost of possible data loss in case of an unexpected crash.
+- Messages and user data are loaded into **memory (RAM)** at server startup for ultra-fast, non-blocking access.
+- User data follows a **Write-Through** policy, protected by a dedicated mutex.
+- Message persistence is managed by an asynchronous **Flush Thread** running in the background. It periodically writes to disk only if data has changed (**Dirty Bit optimization**).
+- Writes utilize an **Atomic Update Pattern** (write to a `.tmp` file → force hardware write with `fsync` → replace original with `rename`) to absolutely prevent data corruption during unexpected system crashes or power losses.
+- A final guaranteed save occurs during a graceful server shutdown.
 
 ---
 
 ### Concurrency Model
 
+The server handles multiple clients simultaneously using a thread-per-client model, fortified with a connection limit (`MAX_CLIENTS`) to prevent **Denial of Service (DoS)** attacks.
+
 | Platform | Thread Model | Synchronization | Shutdown Handling |
 |----------|--------------|-----------------|-------------------|
-| POSIX    | One thread per client (`pthread`) | `pthread_mutex_t` | `SIGINT` |
+| POSIX    | One thread per client (`pthread`) | `pthread_mutex_t` | `SIGINT` + `shutdown()` |
 | Windows  | One thread per client (`_beginthreadex`) | `CRITICAL_SECTION` | `ConsoleCtrlHandler` |
 
-Shared resources are protected using mutexes to avoid race conditions.
+Shared resources are protected using granular mutexes (`cache_mutex` and `file_mutex`) to avoid race conditions.
 
 ---
 
 ### Network Communication
 
-- Reliable **TCP/IP sockets**
-- Line-based custom protocol
-- Blocking I/O
-- Default server port: **8080**
+- Reliable **TCP/IP sockets** with a custom line-based protocol.
+- **Robust Error Handling**: Uses `MSG_NOSIGNAL` to prevent fatal `SIGPIPE` crashes when clients disconnect abruptly.
+- **Socket Timeouts**: Implements `SO_RCVTIMEO` and `SO_SNDTIMEO` to prevent server deadlocks from inactive or unresponsive clients.
+- **Protocol Synchronization**: Safe buffer parsing with automatic discarding of excess bytes to prevent command desynchronization in case of buffer overflows.
+- Default server port: **8080**.
 
 ---
 
@@ -87,23 +88,22 @@ Shared resources are protected using mutexes to avoid race conditions.
 
 ### **1. Server**
 
-- Accepts multiple concurrent client connections
-- Handles user registration and authentication
-- Stores messages in an in-memory cache
-- Writes data to disk on graceful shutdown
-- Protects shared data using mutexes
+- Accepts multiple concurrent client connections securely.
+- Handles user registration and authentication with atomic TOCTOU (Time-of-Check to Time-of-Use) prevention.
+- Stores messages in an in-memory cache managed by a background Flush Thread.
+- Protects shared data using multiple mutexes.
 
 ### **2. Client**
 
-- Command-line, menu-driven interface
-- Supports login, message sending, reading, and deletion
-- Connects to a local server (default: `127.0.0.1:8080`)
+- Command-line, menu-driven interface with strict, sanitized input validation (`strtol`, dynamic `sscanf`).
+- Supports login, message sending, reading, and deletion.
+- Connects to a local server (default: `127.0.0.1:8080`).
 
-### **3. Persistent Storage**
+### **3. Persistent Storage (DATA/)**
 
-- `users.txt` — registered users with hashed passwords
-- `messages.txt` — stored messages
-- Files are shared across executions
+- `users.txt` — registered users with hashed passwords.
+- `messages.txt` — stored messages managed atomically.
+- The `DATA/` directory is shared across both POSIX and Windows executions.
 
 ---
 
@@ -111,28 +111,28 @@ Shared resources are protected using mutexes to avoid race conditions.
 
 ### Message Posting
 
-Client sends a message → server stores it in memory.
+Client sends a message → server stores it in memory instantly.
 
 ### Reading Messages
 
-Client requests messages → server sends all messages addressed to the user.
+Client requests messages → server securely fetches and sends all messages addressed to the user using a counted header protocol.
 
 ### Message Deletion
 
-Users can delete **all messages addressed to them**, regardless of the sender.
+Users can delete **all messages addressed to them**, implemented via an efficient O(N) in-place array compaction.
 
 ### Authentication
 
-Username/password authentication with password hashing.
+Username/password authentication with password hashing (djb2).
 
 ---
 
-## **Optimization Strategies**
+## 🚀 **Optimization Strategies**
 
-- Write-back persistence minimizes disk access
-- Simple text protocol improves robustness
-- Mutexes eliminate race conditions
-- Clean separation between POSIX and Windows implementations
+- **Atomic Persistence & Dirty Bit**: Minimizes disk I/O and guarantees database integrity.
+- **Thread-Safety**: Complete reentrancy using `strtok_r` and granular locking.
+- **Network Resilience**: Timeouts and signal masking (`MSG_NOSIGNAL`) prevent server hangs and crashes.
+- Clean separation between POSIX and Windows implementations while sharing the same `DATA/` directory.
 
 ---
 
@@ -140,7 +140,7 @@ Username/password authentication with password hashing.
 
 A **single Makefile** is provided to build both versions.
 
-Build POSIX version:
+### **Build POSIX version:**
 
 ```bash
 make posix
@@ -151,11 +151,19 @@ make posix
 ```bash
 make windows
 ```
-### Run executables (POSIX/WINDOWS):
 
+### **Run executables:**
+
+**For POSIX:**
 ```bash
-./server
-./client
+./server_posix
+./client_posix
+```
+
+**For WINDOWS:**
+```bash
+./server_win.exe
+./client_win.exe
 ```
 
 ### Windows Build Notes
@@ -173,10 +181,10 @@ The Windows version is designed to be compiled using **MinGW (GCC for Windows)**
 
 Developed for the **Operating Systems course**, focusing on:
 
-- Concurrency
-- Synchronization
-- Network programming
-- Persistent storage
+- Concurrency and Race Condition prevention
+- Synchronization and Atomic Operations
+- Advanced Network programming (Timeouts, Broken Pipes)
+- Robust Persistent storage
 
 ---
 
@@ -186,7 +194,7 @@ Developed for the **Operating Systems course**, focusing on:
 ## 🎯 **Descrizione del Progetto**
 
 Il progetto realizza un **servizio di messaggistica multi-utente concorrente** basato su architettura **client–server**.
-Più client possono collegarsi simultaneamente al server per **registrarsi, autenticarsi e scambiare messaggi** in modo concorrente.
+Più client possono collegarsi simultaneamente al server per **registrarsi, autenticarsi e scambiare messaggi** in modo concorrente e sicuro.
 
 L’intero sistema è sviluppato in **linguaggio C** e utilizza **socket TCP/IP** con un **protocollo testuale personalizzato**.
 Il progetto è disponibile in **due versioni distinte**, pensate per ambienti diversi:
@@ -207,14 +215,14 @@ Le due implementazioni offrono **lo stesso comportamento funzionale**, ma utiliz
 │   ├── src_POSIX/
 │   │   ├── SERVER/
 │   │   ├── CLIENT/
-│   │   ├── COMMON/
-│   │   └── DATA/
+│   │   └── COMMON/
 │   │
-│   └── src_WINDOWS/
-│       ├── SERVER/
-│       ├── CLIENT/
-│       ├── COMMON/
-│       └── DATA/
+│   ├── src_WINDOWS/
+│   │   ├── SERVER/
+│   │   ├── CLIENT/
+│   │   └── COMMON/
+│   │
+│   └── DATA/
 │
 ├── Makefile
 ├── README.md
@@ -228,38 +236,38 @@ Le due implementazioni offrono **lo stesso comportamento funzionale**, ma utiliz
 
 ### Gestione della Memoria e Persistenza
 
-Durante l’esecuzione del server, **tutti i messaggi vengono mantenuti in memoria** all’interno di una struttura dati condivisa.
-La persistenza su disco è gestita tramite una **politica di write-back**:
+Durante l’esecuzione del server, **tutti i messaggi vengono mantenuti in RAM** all’interno di una struttura dati condivisa per azzerare la latenza. 
+La persistenza su disco è implementata in modo robusto tramite una **Strategia Ibrida**:
 
-- I messaggi non vengono scritti immediatamente su file
-- L’intero stato viene salvato **solo durante una chiusura controllata del server**
-- All’avvio successivo, lo stato viene ripristinato leggendo i file di persistenza
-
-Questa scelta riduce il numero di accessi al disco e semplifica la sincronizzazione tra thread, accettando il rischio di perdita dei messaggi in caso di crash improvviso.
+- I dati utente seguono una politica di *Write-Through*.
+- La persistenza dei messaggi è delegata a un **Flush Thread asincrono** in background, ottimizzato da un **Dirty Bit** (il salvataggio scatta solo in caso di reali modifiche in memoria).
+- Ogni scrittura su disco è blindata dal pattern di **Aggiornamento Atomico** (scrittura su file `.tmp` → `fsync` → `rename`) per impedire la corruzione dei dati in caso di blackout o crash.
+- Un ultimo salvataggio di sicurezza è forzato durante il Graceful Shutdown.
 
 ---
 
 ### Gestione della Concorrenza
 
-Il server è progettato per gestire **più client contemporaneamente**.
+Il server è progettato per gestire **più client contemporaneamente** ed è protetto contro attacchi DoS tramite un limite massimo di connessioni (`MAX_CLIENTS`).
 
 | Piattaforma | Modello di concorrenza | Sincronizzazione | Gestione della terminazione |
 |------------|------------------------|------------------|-----------------------------|
-| POSIX      | Un thread per client (`pthread`) | `pthread_mutex_t` | `SIGINT` |
+| POSIX      | Un thread per client (`pthread`) | `pthread_mutex_t` | `SIGINT` + `shutdown()` |
 | Windows    | Un thread per client (`_beginthreadex`) | `CRITICAL_SECTION` | `ConsoleCtrlHandler` |
 
 
-Le risorse condivise (file e strutture dati in memoria) sono protette per evitare **race condition**.
+Le risorse condivise (file e strutture dati in memoria) sono protette da mutex granulari (`cache_mutex` e `file_mutex`) per evitare **race condition**.
 
 ---
 
 ### Comunicazione di Rete
 
-La comunicazione tra client e server avviene tramite:
+La comunicazione tra client e server avviene in modo resiliente tramite:
 
-- Socket **TCP/IP**
-- Protocollo testuale a righe
-- I/O bloccante
+- Socket **TCP/IP** con protocollo testuale a righe delimitato.
+- **Prevenzione Crash**: L'uso del flag `MSG_NOSIGNAL` converte le disconnessioni brutali (Broken Pipe) in errori gestibili, prevenendo la terminazione anomala per `SIGPIPE`.
+- **Prevenzione Deadlock**: Impostazione di timeout a livello kernel (`SO_RCVTIMEO`, `SO_SNDTIMEO`) per disconnettere i client inattivi.
+- **Sincronizzazione Stream**: Funzioni di ricezione potenziate che troncano le stringhe in overflow e scartano i byte in eccesso dal socket per mantenere la sincronia del protocollo.
 - Porta di default del server: **8080**
 
 ---
@@ -270,31 +278,28 @@ La comunicazione tra client e server avviene tramite:
 
 Il server si occupa di:
 
-- Accettare connessioni concorrenti
-- Gestire la registrazione e l’autenticazione degli utenti
-- Mantenere i messaggi in memoria
-- Salvare lo stato su disco in fase di shutdown
-- Garantire la mutua esclusione sulle risorse condivise
+- Accettare connessioni concorrenti in modo sicuro.
+- Gestire registrazione e autenticazione bloccando tentativi TOCTOU.
+- Mantenere i messaggi in RAM (gestiti dal Flush Thread).
+- Garantire uno spegnimento controllato sbloccando le `accept()` pendenti tramite `shutdown()`.
 
 ---
 
 ### **Client**
 
-Il client fornisce un’interfaccia testuale a menu che consente di:
+Il client fornisce un’interfaccia testuale a menu estremamente rigorosa:
 
-- Autenticarsi o registrarsi
-- Inviare messaggi ad altri utenti
-- Leggere i messaggi ricevuti
-- Cancellare i messaggi indirizzati all’utente
+- Validazione sicura degli input tramite `strtol` e formati dinamici.
+- Autenticazione, invio, lettura e cancellazione dei messaggi.
 
 ---
 
-### **Persistenza dei Dati**
+### **Persistenza dei Dati (DATA/)**
 
-I dati persistenti sono memorizzati in file di testo:
+I dati persistenti sono memorizzati in file di testo in formato standardizzato all'interno della cartella condivisa `DATA/`:
 
-- `users.txt` contiene le credenziali degli utenti (con password hashate)
-- `messages.txt` contiene i messaggi salvati dal server
+- `users.txt` contiene le credenziali (con password hashate).
+- `messages.txt` contiene i messaggi salvati in modo atomico.
 
 ---
 
@@ -302,19 +307,19 @@ I dati persistenti sono memorizzati in file di testo:
 
 ### Invio dei Messaggi
 
-- Il client invia un messaggio al server, che lo memorizza nella struttura dati in memoria.
+- Il client invia un messaggio al server, che lo memorizza nella cache in RAM istantaneamente.
 
 ### Lettura dei Messaggi
 
-- Quando un utente richiede la lettura, il server invia **tutti i messaggi indirizzati a quell’utente**.
+- Il server trasmette al client tutti i messaggi destinatigli, preceduti da un header di conteggio per sincronizzare il socket.
 
 ### Cancellazione dei Messaggi
 
-- Un utente può eliminare **tutti i messaggi ricevuti**, indipendentemente dall’utente che li ha inviati.
+- Effettuata tramite una compattazione in-place (O(N)) dell'array dinamico, sicura e senza riallocazioni.
 
 ### Autenticazione
 
-- L’autenticazione è basata su **username e password**, con memorizzazione delle password tramite hashing.
+- Basata su username e password con algoritmo di hashing djb2 e protezione contro attacchi Brute Force (disconnessione dopo 3 fallimenti).
 
 ---
 
@@ -333,12 +338,21 @@ make posix
 ```bash
 make windows
 ```
-### Lancio degli eseguibili:
 
+### **Lancio degli eseguibili:**
+
+**Per POSIX:**
 ```bash
-./server
-./client
+./server_posix
+./client_posix
 ```
+
+**Per WINDOWS:**
+```bash
+./server_win.exe
+./client_win.exe
+```
+
 ### Note sulla compilazione di Windows
 
 La versione Windows è progettata per essere compilata utilizzando **MinGW (GCC per Windows)** all’interno di un ambiente **Unix-like** come **MSYS2**.
@@ -350,4 +364,4 @@ La versione Windows è progettata per essere compilata utilizzando **MinGW (GCC 
 **License:** MIT  
 **Language:** C  
 **Architecture:** Client–Server  
-**Protocol:** TCP/IP  
+**Protocol:** TCP/IP

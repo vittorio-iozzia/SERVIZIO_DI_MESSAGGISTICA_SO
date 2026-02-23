@@ -5,7 +5,7 @@ CC_WINDOWS = x86_64-w64-mingw32-gcc
 
 # --------------------- FLAGS ---------------------
 
-CFLAGS_COMMON = -Wall -Wextra -std=c11
+CFLAGS_COMMON = -Wall -Wextra -g -std=c11
 
 CFLAGS_POSIX   = $(CFLAGS_COMMON) -pthread
 CFLAGS_WINDOWS = $(CFLAGS_COMMON)
@@ -17,10 +17,6 @@ LDFLAGS_WINDOWS = -lws2_32
 
 POSIX_DIR   = src_POSIX
 WINDOWS_DIR = src_WINDOWS
-
-SERVER_DIR  = SERVER
-CLIENT_DIR  = CLIENT
-COMMON_DIR  = COMMON
 
 # --------------------- SOURCES ---------------------
 
@@ -66,6 +62,13 @@ WINDOWS_INCLUDES = \
 	-I$(WINDOWS_DIR)/CLIENT \
 	-I$(WINDOWS_DIR)/COMMON
 
+# --------------------- EXECUTABLES ---------------------
+
+TARGET_SERVER_POSIX = server_posix
+TARGET_CLIENT_POSIX = client_posix
+TARGET_SERVER_WIN   = server_win.exe
+TARGET_CLIENT_WIN   = client_win.exe
+
 # --------------------- TARGETS ---------------------
 
 .PHONY: all posix windows clean
@@ -75,33 +78,27 @@ all:
 
 # --------------------- POSIX ---------------------
 
-posix: posix_server posix_client
+posix: $(TARGET_SERVER_POSIX) $(TARGET_CLIENT_POSIX)
 
-posix_server:
-	$(CC_POSIX) $(CFLAGS_POSIX) $(POSIX_SERVER_SRC) \
-	$(POSIX_INCLUDES) $(LDFLAGS_POSIX) \
-	-o server
+$(TARGET_SERVER_POSIX): $(POSIX_SERVER_SRC)
+	$(CC_POSIX) $(CFLAGS_POSIX) $(POSIX_SERVER_SRC) $(POSIX_INCLUDES) $(LDFLAGS_POSIX) -o $@
 
-posix_client:
-	$(CC_POSIX) $(CFLAGS_POSIX) $(POSIX_CLIENT_SRC) \
-	$(POSIX_INCLUDES) $(LDFLAGS_POSIX) \
-	-o client
+$(TARGET_CLIENT_POSIX): $(POSIX_CLIENT_SRC)
+	$(CC_POSIX) $(CFLAGS_POSIX) $(POSIX_CLIENT_SRC) $(POSIX_INCLUDES) $(LDFLAGS_POSIX) -o $@
 
 # --------------------- WINDOWS ---------------------
 
-windows: windows_server windows_client
+windows: $(TARGET_SERVER_WIN) $(TARGET_CLIENT_WIN)
 
-windows_server:
-	$(CC_WINDOWS) $(CFLAGS_WINDOWS) $(WINDOWS_SERVER_SRC) \
-	$(WINDOWS_INCLUDES) $(LDFLAGS_WINDOWS) \
-	-o server
+$(TARGET_SERVER_WIN): $(WINDOWS_SERVER_SRC)
+	$(CC_WINDOWS) $(CFLAGS_WINDOWS) $(WINDOWS_SERVER_SRC) $(WINDOWS_INCLUDES) $(LDFLAGS_WINDOWS) -o $@
 
-windows_client:
-	$(CC_WINDOWS) $(CFLAGS_WINDOWS) $(WINDOWS_CLIENT_SRC) \
-	$(WINDOWS_INCLUDES) $(LDFLAGS_WINDOWS) \
-	-o client
+$(TARGET_CLIENT_WIN): $(WINDOWS_CLIENT_SRC)
+	$(CC_WINDOWS) $(CFLAGS_WINDOWS) $(WINDOWS_CLIENT_SRC) $(WINDOWS_INCLUDES) $(LDFLAGS_WINDOWS) -o $@
 
 # --------------------- CLEAN ---------------------
 
 clean:
-	rm -f server client
+	rm -f $(TARGET_SERVER_POSIX) $(TARGET_CLIENT_POSIX) \
+	      $(TARGET_SERVER_WIN) $(TARGET_CLIENT_WIN) \
+	      *.tmp

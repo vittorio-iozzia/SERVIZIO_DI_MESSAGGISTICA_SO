@@ -6,28 +6,26 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#include <signal.h>
+#include <errno.h>
+#include <string.h>
+#include <sys/time.h>
 
 #include "../COMMON/common.h"
 
-#define PORT 8080
+#define CLIENT_TIMEOUT 15
 
 /*
  * Avvia il programma client.
  *
- * Si occupa di:
- *  - creare la socket TCP
- *  - connettersi al server locale
- *  - gestire l'autenticazione dell'utente
- *  - avviare il menu interattivo principale
+ * Architettura "Thin Client":
+ * Il client si limita a instaurare la connessione e a fare da passacarte
+ * tra l'utente e il server. Tutta la logica, la validazione e la sicurezza 
+ * risiedono lato server.
+ * La funzione ora accetta l'IP del server come parametro.
  */
-void client_program(void) {
-
+void client_program(const char *server_ip) {
     int sock;
     struct sockaddr_in server = {0};
-
-    /* Evita la terminazione del processo in caso di scrittura su socket chiusa */
-    signal(SIGPIPE, SIG_IGN);
 
     /* Creazione socket TCP */
     sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -36,10 +34,40 @@ void client_program(void) {
         exit(EXIT_FAILURE);
     }
 
+    /* Portabilità macOS/BSD contro SIGPIPE. 
+       Se compiliamo su Mac, MSG_NOSIGNAL non esiste. Usiamo SO_NOSIGPIPE. */
+#ifdef __APPLE__
+    int set_option = 1;
+    if (setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &set_option, sizeof(set_option)) < 0) {
+        perror("setsockopt SO_NOSIGPIPE");
+        // Non fatale, ma da loggare
+    }
+#endif
+
+    /* Impostazione Timeout sul Socket. Un client robusto non si blocca mai all'infinito. */
+    struct timeval tv;
+    tv.tv_sec = CLIENT_TIMEOUT;
+    tv.tv_usec = 0;
+    
+    if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+        perror("setsockopt SO_RCVTIMEO");
+        exit(EXIT_FAILURE); /* Errore fatale: non vogliamo un client che possa bloccarsi */
+    }
+    if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) < 0) {
+        perror("setsockopt SO_SNDTIMEO");
+        exit(EXIT_FAILURE);
+    }
+
     /* Configurazione indirizzo del server */
     server.sin_family = AF_INET;
     server.sin_port = htons(PORT);
-    inet_pton(AF_INET, "127.0.0.1", &server.sin_addr);
+    
+    /*  Utilizzo dell'IP passato come parametro invece di quello hardcodato */
+    if (inet_pton(AF_INET, server_ip, &server.sin_addr) <= 0) {
+        perror("inet_pton");
+        close(sock);
+        exit(EXIT_FAILURE);
+    }
 
     /* Connessione al server */
     if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
@@ -52,6 +80,7 @@ void client_program(void) {
 
     /* Fase di autenticazione */
     if (client_authenticate(sock) != 0) {
+        shutdown(sock, SHUT_RDWR); /* Forzo la chiusura della socket a livello di protocollo (abbatto le connessioni)*/
         close(sock);
         return;
     }
@@ -59,6 +88,7 @@ void client_program(void) {
     /* Avvio del menu interattivo del client */
     client_menu_loop(sock);
 
-    /* Chiusura socket */
+    /* Chiusura socket in modo sicuro */
+    shutdown(sock, SHUT_RDWR);
     close(sock);
 }

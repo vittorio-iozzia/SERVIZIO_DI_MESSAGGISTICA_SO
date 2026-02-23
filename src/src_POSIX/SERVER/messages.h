@@ -1,8 +1,15 @@
 #ifndef MESSAGES_H
 #define MESSAGES_H
 
+#include <stddef.h> /* [FIX] Necessario per definire il tipo size_t */
 #include "server.h"
 
+/* ----------------------------------------------------- */
+/* UTILITY / FUNZIONI DI SUPPORTO                        */
+/* ----------------------------------------------------- */
+
+/* Esportata la funzione per renderla visibile in server.c */
+void sanitize_input(char *str, size_t max_len);
 
 /* ----------------------------------------------------- */
 /* GESTIONE PERSISTENZA MESSAGGI                         */
@@ -29,7 +36,6 @@ void read_messages(const char *user, int client_socket);
 
 /* Elimina TUTTI i messaggi indirizzati all'utente */
 void delete_messages(const char *user);
-
 
 /* Elimina UN messaggio specifico di un utente (tramite ID)
  * Ritorna 1 se eliminato, 0 se non trovato

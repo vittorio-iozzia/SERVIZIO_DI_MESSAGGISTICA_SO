@@ -4,42 +4,47 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* Dimensioni massime di username e password */
+/* --- CONFIGURAZIONE SISTEMA --- */
+#define PORT               8080
+#define MAX_CLIENTS        100      /* [DoS] Limite massimo di connessioni simultanee */
+#define USER_FILE          "DATA/users.txt"
+#define MSG_FILE           "DATA/messages.txt"
+
+/* --- DIMENSIONI BUFFER (COERENTI CON I FIX) --- */
 #define MAX_USERNAME_LEN   50
 #define MAX_PASSWORD_LEN   50
-
-/* Dimensioni massime dei campi di un messaggio */
 #define MAX_SUBJECT_LEN    100
 #define MAX_BODY_LEN       1024
+#define MAX_MSG_LEN        2048    /* Spazio sufficiente per comando + dati + separatori */
+#define MAX_SERVER_CACHE   100000
 
-/* Dimensione massima di una riga del protocollo */
-#define MAX_MSG_LEN        2048
-
-/* Delimitatori del protocollo testuale */
+/* --- DELIMITATORI PROTOCOLLO --- */
 #define PROTO_FIELD_DELIM  '|'
 #define PROTO_LINE_END     '\n'
 
-/* Comandi inviati dal client al server */
-#define CMD_LOGIN      "LOGIN"
-#define CMD_REGISTER   "REGISTER"
-#define CMD_SEND       "SEND"
-#define CMD_READ       "READ"
-#define CMD_DELETE     "DELETE"
-#define CMD_QUIT       "QUIT"
+/* --- COMANDI CLIENT (Senza newline, usati con strtok_r) --- */
+#define CMD_LOGIN          "LOGIN"
+#define CMD_REGISTER       "REGISTER"
+#define CMD_SEND           "SEND"
+#define CMD_READ           "READ"
+#define CMD_DELETE         "DELETE"
+#define CMD_DELETE_ONE     "DELETE_ONE" 
+#define CMD_QUIT           "QUIT"
 
-/* Risposte inviate dal server al client */
-#define RESP_OK            "OK"
-#define RESP_OK_REG        "OK_REG"
-#define RESP_FAIL          "FAIL"
-#define RESP_FAIL_EXISTS   "FAIL_EXISTS"
-#define RESP_ERR           "ERR"
-#define RESP_BYE           "BYE"
-#define RESP_END_READ      "END_READ"
+/* --- RISPOSTE SERVER (Con newline per recv_line) --- */
+/* Includere il \n qui rende il codice del server molto più pulito e meno propenso a errori */
+#define RESP_OK            "OK\n"
+#define RESP_OK_REG        "OK_REG\n"
+#define RESP_FAIL          "FAIL\n"
+#define RESP_FAIL_EXISTS   "FAIL_EXISTS\n"
+#define RESP_ERR           "ERR\n"
+#define RESP_BYE           "BYE\n"
 
-/*
- * Header condiviso tra client e server.
- * Centralizza le costanti del protocollo e le dimensioni dei buffer
- * per garantire coerenza tra le due componenti.
- */
+/* --- NOTIFICHE AVANZATE --- */
+#define RESP_COUNT         "COUNT"             /* Usato con snprintf per aggiungere il numero */
+#define RESP_TOO_MANY      "TOO_MANY_ATTEMPTS\n"
+#define RESP_ERR_NO_USER   "ERR_NO_USER\n"
+#define RESP_ERR_NOT_FOUND "ERR_NOT_FOUND\n"
+#define RESP_ERR_FORMAT    "ERR_INVALID_FORMAT\n"
 
 #endif /* COMMON_H */

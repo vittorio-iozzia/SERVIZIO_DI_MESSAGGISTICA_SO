@@ -6,11 +6,11 @@
 #include <stddef.h>
 #include "../COMMON/common.h"
 
-#define PORT 8080
 #define USER_FILE "DATA/users.txt"
 #define MSG_FILE "DATA/messages.txt"
 
-/* Strutture e variabili globali */
+/* ---------------- STRUTTURE ---------------- */
+
 typedef struct {
     int id;
     char recipient[50];
@@ -30,16 +30,31 @@ typedef struct {
     char username[50];
 } ClientHandler;
 
-/* Variabili globali (definite in server.c) */
+/* ---------------- VARIABILI GLOBALI ---------------- */
+/* Definite in server.c */
+
 extern pthread_mutex_t file_mutex;
 extern pthread_mutex_t cache_mutex;
+extern pthread_mutex_t client_count_mutex;
+
 extern MessageCache global_cache;
 extern int server_fd;
 extern volatile sig_atomic_t running;
+extern int active_clients;
 
-/* Prototypes */
+extern pthread_t active_threads[MAX_CLIENTS];
+extern int client_sockets[MAX_CLIENTS];
+extern pthread_mutex_t client_count_mutex;
+extern int active_clients;
+
+/* Aggiunta della variabile per il thread di flush, necessaria al main per la pthread_join */
+extern pthread_t flush_thread_id; 
+
+/* ---------------- PROTOTIPI FUNZIONI ---------------- */
+
 void server_shutdown_cleanup();
 void handle_sigint(int sig);
 void *handle_client(void *arg);
+void start_flush_thread();
 
 #endif

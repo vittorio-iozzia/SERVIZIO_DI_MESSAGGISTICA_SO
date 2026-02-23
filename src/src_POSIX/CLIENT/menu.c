@@ -6,18 +6,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <limits.h>
 #include <sys/socket.h>
-
 #include "../COMMON/common.h"
 
-/*
- * Gestisce il menu interattivo del client dopo l'autenticazione.
- *
- * La funzione invia i comandi al server secondo il protocollo testuale
- * e gestisce le risposte ricevute.
- */
+#define MAX_INBOX_SIZE 10000 /* Limite di sicurezza anti-DoS */
+
 void client_menu_loop(int sock) {
     char buffer[MAX_MSG_LEN];
+    char choice_input[10];
 
     while (1) {
         printf("\n=== MENU ===\n");
@@ -25,76 +22,99 @@ void client_menu_loop(int sock) {
         printf("2. Leggi messaggi\n");
         printf("3. Cancella tutti i messaggi\n");
         printf("4. Cancella un messaggio specifico\n");
-        printf("5. Esci\n> ");
+        printf("5. Esci\n");
 
-        char choice_input[10];
-        if (!fgets(choice_input, sizeof(choice_input), stdin))
-            return;
+        if (!read_input("> ", choice_input, sizeof(choice_input))) return;
 
-        int choice = atoi(choice_input);
+        char *endptr_menu;
+        long choice = strtol(choice_input, &endptr_menu, 10);
+        if (endptr_menu == choice_input || *endptr_menu != '\0' || choice < 1 || choice > 5) {  /* Nel primo controllo ho aggiunto una protezione contro input non numerici */
+            printf("Scelta non valida. Inserisci un numero tra 1 e 5.\n");
+            continue;
+        }
 
         if (choice == 1) {  /* Invia messaggio */
             char to[MAX_USERNAME_LEN];
             char subj[MAX_SUBJECT_LEN];
             char body[MAX_BODY_LEN];
 
-            printf("A: ");
-            fgets(to, sizeof(to), stdin);
-            clean_input(to);
+            if (!read_input("A: ", to, sizeof(to))) return;
+            if (!read_input("Oggetto: ", subj, sizeof(subj))) return;
+            if (!read_input("Testo: ", body, sizeof(body))) return;
 
-            printf("Oggetto: ");
-            fgets(subj, sizeof(subj), stdin);
-            clean_input(subj);
+            int written = snprintf(buffer, sizeof(buffer), "%s|%s|%s|%s\n", 
+                                   CMD_SEND, to, subj, body);
+            
+            if (written < 0 || written >= (int)sizeof(buffer)) {
+                fprintf(stderr, "Errore: Messaggio troppo lungo.\n");
+                continue;
+            }
 
-            printf("Testo: ");
-            fgets(body, sizeof(body), stdin);
-            clean_input(body);
+            if (send_all(sock, buffer, (size_t)written) < 0) return;
+            if (recv_line(sock, buffer, sizeof(buffer)) <= 0) return;
 
-            snprintf(buffer, sizeof(buffer),
-                     "SEND|%s|%s|%s\n", to, subj, body);
-            send(sock, buffer, strlen(buffer), 0);
-            recv_line(sock, buffer, sizeof(buffer));
             printf("Server: %s\n", buffer);
 
         } else if (choice == 2) {  /* Leggi messaggi */
-            send(sock, "READ\n", 5, 0);
-            printf("\n--- Posta in arrivo ---\n");
+            
+            snprintf(buffer, sizeof(buffer), "%s\n", CMD_READ);
+            if (send_all(sock, buffer, strlen(buffer)) < 0) return;
+            
+            if (recv_line(sock, buffer, sizeof(buffer)) <= 0) return;
 
-            while (1) {
-                recv_line(sock, buffer, sizeof(buffer));
-                if (strcmp(buffer, "END_READ") == 0)
-                    break;
-                /* mostra chiaramente l'ID per DELETE_ONE */
-                printf("%s\n", buffer);
+            int msg_count = 0;
+            
+            char format[32];
+            snprintf(format, sizeof(format), "%s|%%d", RESP_COUNT);
+
+            if (sscanf(buffer, format, &msg_count) != 1) {  /* Con != 1 mi assicuro che il client non provi a leggere un numero di messaggi causuale rimasto nella variabile msg count*/
+                fprintf(stderr, "[ERRORE] Risposta imprevista: %s\n", buffer);
+                continue;
             }
 
+            if (msg_count < 0 || msg_count > MAX_INBOX_SIZE) {
+                fprintf(stderr, "[ERRORE] Numero messaggi non valido (%d).\n", msg_count);
+                return; 
+            }
+
+            if (msg_count == 0) {
+                printf("\n--- La tua casella di posta è vuota ---\n");
+                continue;
+            }
+
+            printf("\n--- Posta in arrivo (%d righe) ---\n", msg_count);
+            for (int i = 0; i < msg_count; i++) {
+                if (recv_line(sock, buffer, sizeof(buffer)) <= 0) return;
+                printf("%s\n", buffer);
+            }
+            printf("--- Fine ---\n");
+
         } else if (choice == 3) {  /* Cancella tutti */
-            send(sock, "DELETE\n", 7, 0);
-            recv_line(sock, buffer, sizeof(buffer));
+            snprintf(buffer, sizeof(buffer), "%s\n", CMD_DELETE);
+            if (send_all(sock, buffer, strlen(buffer)) < 0) return;
+            if (recv_line(sock, buffer, sizeof(buffer)) <= 0) return;
             printf("Server: %s\n", buffer);
 
         } else if (choice == 4) {  /* Cancella specifico */
-            int msg_id;
-            printf("Inserisci ID del messaggio da cancellare: ");
-            if (scanf("%d", &msg_id) != 1) {
-                while (getchar() != '\n'); /* pulisce buffer */
+            char id_input[16];
+            if (!read_input("ID messaggio: ", id_input, sizeof(id_input))) continue;
+
+            char *endptr;
+            long val = strtol(id_input, &endptr, 10);
+            if (endptr == id_input || *endptr != '\0' || val <= 0 || val > INT_MAX) {
                 printf("ID non valido.\n");
                 continue;
             }
-            while (getchar() != '\n'); /* pulisce newline */
 
-            snprintf(buffer, sizeof(buffer),
-                     "DELETE_ONE|%d\n", msg_id);
-            send(sock, buffer, strlen(buffer), 0);
-            recv_line(sock, buffer, sizeof(buffer));
+            snprintf(buffer, sizeof(buffer), "%s|%ld\n", CMD_DELETE_ONE, val);
+            if (send_all(sock, buffer, strlen(buffer)) < 0) return;
+            if (recv_line(sock, buffer, sizeof(buffer)) <= 0) return;
             printf("Server: %s\n", buffer);
 
         } else if (choice == 5) {  /* Esci */
-            send(sock, "QUIT\n", 5, 0);
+            snprintf(buffer, sizeof(buffer), "%s\n", CMD_QUIT);
+            send_all(sock, buffer, strlen(buffer));
             return;
-
-        } else {
-            printf("Scelta non valida.\n");
         }
     }
 }
